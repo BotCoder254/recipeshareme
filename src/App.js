@@ -42,9 +42,9 @@ function App() {
                 <AddRecipe />
               </ProtectedRoute>
             } />
-            <Route path="/edit-recipe/:recipeId" element={
+            <Route path="/recipe/edit/:recipeId" element={
               <ProtectedRoute>
-                <AddRecipe />
+                <AddRecipe isEdit={true} />
               </ProtectedRoute>
             } />
             <Route path="/recipes/tags/:tag" element={<Tags />} />

@@ -14,7 +14,7 @@ import { useAuth } from '../hooks/useAuth';
 import { storage, db } from '../firebase/config';
 
 
-const AddRecipe = () => {
+const AddRecipe = ({ isEdit }) => {
   const { recipeId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -36,6 +36,7 @@ const AddRecipe = () => {
     ingredients: [{ id: Date.now(), name: '', amount: '' }],
     instructions: [{ id: Date.now(), step: '' }],
     tips: [''],
+    tags: [],
     nutrition: {
       calories: '',
       protein: '',
@@ -538,6 +539,31 @@ const AddRecipe = () => {
                       error={errors.servings}
                     />
                   </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-neutral-700 font-medium mb-2">
+                      Tags
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.tags.join(', ')}
+                      onChange={(e) => {
+                        const tagsArray = e.target.value
+                          .split(',')
+                          .map(tag => tag.trim())
+                          .filter(tag => tag.length > 0);
+                        setFormData(prev => ({
+                          ...prev,
+                          tags: tagsArray
+                        }));
+                      }}
+                      placeholder="Enter tags separated by commas (e.g., Italian, Pizza, Homemade)"
+                      className="w-full border border-neutral-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
+                    />
+                    <p className="mt-1 text-sm text-neutral-500">
+                      Add relevant tags to help users find your recipe
+                    </p>
+                  </div>
                 </div>
               </div>
               
@@ -568,9 +594,9 @@ const AddRecipe = () => {
                             {/* Upload Progress Overlay */}
                             {!image.uploaded && uploadProgress[image.id] !== undefined && (
                               <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center text-white">
-                                <div className="w-3/4 bg-neutral-700 rounded-full h-2.5 mb-2">
+                                <div className="w-3/4 bg-neutral-700 rounded-full h-2.5 mb-2 overflow-hidden">
                                   <div 
-                                    className="bg-primary-500 h-2.5 rounded-full" 
+                                    className="bg-primary-500 h-2.5 rounded-full transition-all duration-300 ease-out"
                                     style={{ width: `${uploadProgress[image.id]}%` }}
                                   ></div>
                                 </div>

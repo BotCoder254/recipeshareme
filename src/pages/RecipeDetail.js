@@ -428,7 +428,7 @@ const RecipeDetail = () => {
                       <div className="flex items-center space-x-2">
                         <Button
                           as={Link}
-                          to={`/recipe/edit/${recipeId}`}
+                          to={`/recipe/edit/${recipe.id}`}
                           variant="outline"
                           className="!text-white border-white/30 hover:bg-white/10"
                         >
@@ -880,15 +880,19 @@ const RecipeDetail = () => {
                 <h3 className="text-lg font-semibold text-neutral-800 mb-4">Tags</h3>
                 
                 <div className="flex flex-wrap gap-2">
-                  {['Italian', 'Pizza', 'Homemade', 'Dinner', 'Vegetarian', 'Cheese', 'Tomato', 'Basil'].map((tag) => (
-                    <Link 
-                      key={tag}
-                      to={`/recipes?tag=${tag.toLowerCase()}`}
-                      className="px-3 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-full text-sm transition-colors"
-                    >
-                      {tag}
-                    </Link>
-                  ))}
+                  {recipe.tags?.length > 0 ? (
+                    recipe.tags.map((tag) => (
+                      <Link 
+                        key={tag}
+                        to={`/recipes/tags/${encodeURIComponent(tag.toLowerCase())}`}
+                        className="px-3 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-full text-sm transition-colors"
+                      >
+                        {tag}
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-neutral-500">No tags available</p>
+                  )}
                 </div>
               </div>
             </div>
