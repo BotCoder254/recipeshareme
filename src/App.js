@@ -14,6 +14,8 @@ import NotFound from './pages/NotFound';
 import RecipeDetail from './pages/RecipeDetail';
 import AddRecipe from './pages/AddRecipe';
 import Tags from './pages/Tags';
+import Trending from './pages/Trending';
+import Featured from './pages/Featured';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -48,6 +50,8 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/recipes/tags/:tag" element={<Tags />} />
+            <Route path="/trending" element={<Trending />} />
+            <Route path="/featured" element={<Featured />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Router>
