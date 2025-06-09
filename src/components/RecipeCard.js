@@ -1,17 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiClock, FiUsers, FiHeart } from 'react-icons/fi';
+import { FiClock, FiUsers, FiHeart, FiActivity } from 'react-icons/fi';
+import { useAuth } from '../hooks/useAuth';
 
-const RecipeCard = ({ recipe }) => {
-  const [isLiked, setIsLiked] = useState(false);
-
-  const toggleLike = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsLiked(!isLiked);
-    // Here you would also update the like status in Firebase
-  };
+const RecipeCard = ({ recipe, onDelete }) => {
+  const { user } = useAuth();
+  const [imageError, setImageError] = useState(false);
 
   return (
     <motion.div
@@ -24,19 +19,18 @@ const RecipeCard = ({ recipe }) => {
       <Link to={`/recipe/${recipe.id}`} className="block">
         <div className="relative">
           <img
-            src={recipe.imageUrl || 'https://via.placeholder.com/300x200?text=Recipe+Image'}
+            src={imageError ? 'https://via.placeholder.com/300x200?text=Recipe+Image' : (recipe.imageUrl || 'https://via.placeholder.com/300x200?text=Recipe+Image')}
             alt={recipe.title}
             className="w-full h-48 object-cover"
+            onError={() => setImageError(true)}
           />
-          <button
-            onClick={toggleLike}
-            className="absolute top-3 right-3 p-2 bg-white bg-opacity-80 rounded-full shadow-soft hover:bg-opacity-100 transition-all duration-200"
-          >
-            <FiHeart
-              size={18}
-              className={`${isLiked ? 'fill-red-500 text-red-500' : 'text-neutral-600'} transition-colors duration-200`}
-            />
-          </button>
+          <div className="absolute top-3 right-3 flex space-x-2">
+            {recipe.likes?.includes(user?.uid) && (
+              <div className="p-2 bg-white bg-opacity-80 rounded-full shadow-soft">
+                <FiHeart size={18} className="fill-red-500 text-red-500" />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="p-4">
@@ -44,9 +38,15 @@ const RecipeCard = ({ recipe }) => {
             <span className="px-2 py-1 text-xs font-medium bg-primary-100 text-primary-700 rounded-full">
               {recipe.category}
             </span>
-            <div className="ml-auto flex items-center text-neutral-500 text-sm">
-              <FiClock size={14} className="mr-1" />
-              {recipe.cookTime} min
+            <div className="ml-auto flex items-center space-x-3 text-neutral-500 text-sm">
+              <div className="flex items-center">
+                <FiActivity size={14} className="mr-1" />
+                {recipe.viewCount || 0}
+              </div>
+              <div className="flex items-center">
+                <FiClock size={14} className="mr-1" />
+                {recipe.cookTime} min
+              </div>
             </div>
           </div>
 
@@ -61,15 +61,25 @@ const RecipeCard = ({ recipe }) => {
           <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
             <div className="flex items-center">
               <img
-                src={recipe.authorPhotoURL || 'https://via.placeholder.com/40x40?text=User'}
+                src={recipe.authorPhotoURL || 'https://via.placeholder.com/40x40?text=Chef'}
                 alt={recipe.authorName}
-                className="w-6 h-6 rounded-full mr-2"
+                className="w-6 h-6 rounded-full mr-2 object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://via.placeholder.com/40x40?text=Chef';
+                }}
               />
               <span className="text-xs text-neutral-600">{recipe.authorName}</span>
             </div>
-            <div className="flex items-center text-neutral-500 text-xs">
-              <FiUsers size={14} className="mr-1" />
-              {recipe.servings} servings
+            <div className="flex items-center space-x-3 text-neutral-500 text-xs">
+              <div className="flex items-center">
+                <FiHeart size={14} className="mr-1" />
+                {recipe.likesCount || 0}
+              </div>
+              <div className="flex items-center">
+                <FiUsers size={14} className="mr-1" />
+                {recipe.servings}
+              </div>
             </div>
           </div>
         </div>

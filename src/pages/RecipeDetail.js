@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   FiClock, FiUsers, FiHeart, FiBookmark, FiShare2, FiPrinter, 
   FiMessageSquare, FiFacebook, FiTwitter, FiLinkedin, FiMail, FiLink,
-  FiEdit2, FiTrash2, FiStar
+  FiEdit2, FiTrash2, FiStar, FiActivity
 } from 'react-icons/fi';
 import { doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
@@ -114,6 +114,10 @@ const RecipeDetail = () => {
       if (!data.comments) {
         data.comments = [];
       }
+      // Increment view count
+      await updateDoc(docRef, {
+        viewCount: increment(1)
+      });
       return { id: docSnap.id, ...data };
     }
   });
@@ -338,6 +342,10 @@ const RecipeDetail = () => {
                       <FiStar className="mr-2" />
                       <span>Rating: {averageRating} ({recipe.ratingCount || 0})</span>
                     </div>
+                    <div className="flex items-center">
+                      <FiActivity className="mr-2" />
+                      <span>Views: {recipe.viewCount || 0}</span>
+                    </div>
                     <div className="px-3 py-1 text-sm font-medium bg-white/20 rounded-full">
                       {recipe.difficulty}
                     </div>
@@ -346,14 +354,18 @@ const RecipeDetail = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <img 
-                        src={recipe.authorPhotoURL} 
+                        src={recipe.authorPhotoURL || 'https://via.placeholder.com/100x100?text=Chef'} 
                         alt={recipe.authorName} 
-                        className="w-10 h-10 rounded-full mr-3 border-2 border-white"
+                        className="w-10 h-10 rounded-full mr-3 border-2 border-white object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = 'https://via.placeholder.com/100x100?text=Chef';
+                        }}
                       />
                       <div>
                         <p className="font-medium">{recipe.authorName}</p>
                         <p className="text-sm text-white/70">
-                          {recipe.createdAt?.toDate().toLocaleDateString('en-US', { 
+                          {recipe.createdAt?.toDate?.().toLocaleDateString('en-US', { 
                             year: 'numeric', 
                             month: 'long', 
                             day: 'numeric' 
