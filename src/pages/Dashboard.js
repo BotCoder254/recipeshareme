@@ -1,114 +1,107 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiPlus, FiEdit2, FiTrash2, FiHeart, FiBookmark, FiGrid, FiList, FiActivity } from 'react-icons/fi';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { toast } from 'react-hot-toast';
 
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
 import RecipeCard from '../components/RecipeCard';
 import { useAuth } from '../hooks/useAuth';
+import { db } from '../firebase/config';
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-// Sample data - would be replaced with Firebase data
-const sampleUserRecipes = [
-  {
-    id: '1',
-    title: 'Homemade Pizza',
-    description: 'A delicious homemade pizza with fresh ingredients and a crispy crust.',
-    imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80',
-    category: 'Italian',
-    cookTime: 45,
-    servings: 4,
-    authorName: 'Jamie Oliver',
-    authorPhotoURL: 'https://randomuser.me/api/portraits/men/32.jpg',
-    createdAt: new Date('2023-05-15'),
-    likes: 24,
-    comments: 8,
-  },
-  {
-    id: '2',
-    title: 'Chocolate Chip Cookies',
-    description: 'Classic chocolate chip cookies that are soft in the middle and crispy on the edges.',
-    imageUrl: 'https://images.unsplash.com/photo-1499636136210-6f4ee915583e?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80',
-    category: 'Dessert',
-    cookTime: 25,
-    servings: 12,
-    authorName: 'Jamie Oliver',
-    authorPhotoURL: 'https://randomuser.me/api/portraits/men/32.jpg',
-    createdAt: new Date('2023-06-02'),
-    likes: 36,
-    comments: 12,
-  },
-];
-
-const sampleFavoriteRecipes = [
-  {
-    id: '3',
-    title: 'Vegetable Stir Fry',
-    description: 'A healthy and colorful vegetable stir fry with a savory sauce. Ready in minutes!',
-    imageUrl: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80',
-    category: 'Vegetarian',
-    cookTime: 15,
-    servings: 2,
-    authorName: 'Ella Woodward',
-    authorPhotoURL: 'https://randomuser.me/api/portraits/women/12.jpg',
-    createdAt: new Date('2023-05-28'),
-    likes: 18,
-    comments: 5,
-  },
-  {
-    id: '4',
-    title: 'Classic Beef Burger',
-    description: 'Juicy homemade beef burgers with all the toppings. Perfect for summer barbecues.',
-    imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=699&q=80',
-    category: 'American',
-    cookTime: 20,
-    servings: 4,
-    authorName: 'Gordon Ramsay',
-    authorPhotoURL: 'https://randomuser.me/api/portraits/men/85.jpg',
-    createdAt: new Date('2023-06-10'),
-    likes: 42,
-    comments: 15,
-  },
-];
-
 const Dashboard = () => {
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('myRecipes');
   const [viewMode, setViewMode] = useState('grid');
-  const [userRecipes, setUserRecipes] = useState([]);
-  const [favoriteRecipes, setFavoriteRecipes] = useState([]);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    // In a real app, this would fetch from Firebase
-    setUserRecipes(sampleUserRecipes);
-    setFavoriteRecipes(sampleFavoriteRecipes);
-  }, []);
+  // Fetch user's recipes
+  const { data: userRecipes = [], isLoading: isLoadingUserRecipes } = useQuery({
+    queryKey: ['userRecipes', user?.uid],
+    queryFn: async () => {
+      const recipesRef = collection(db, 'recipes');
+      const q = query(recipesRef, where('userId', '==', user.uid));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate()
+      }));
+    },
+    enabled: !!user?.uid
+  });
 
-  // Chart data
+  // Fetch user's favorite recipes
+  const { data: favoriteRecipes = [], isLoading: isLoadingFavorites } = useQuery({
+    queryKey: ['favoriteRecipes', user?.uid],
+    queryFn: async () => {
+      const recipesRef = collection(db, 'recipes');
+      const q = query(recipesRef, where('saves', 'array-contains', user.uid));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate()
+      }));
+    },
+    enabled: !!user?.uid
+  });
+
+  // Delete recipe mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (recipeId) => {
+      await deleteDoc(doc(db, 'recipes', recipeId));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['userRecipes', user?.uid]);
+      toast.success('Recipe deleted successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to delete recipe');
+      console.error('Delete error:', error);
+    }
+  });
+
+  const handleDeleteRecipe = (recipeId) => {
+    if (window.confirm('Are you sure you want to delete this recipe?')) {
+      deleteMutation.mutate(recipeId);
+    }
+  };
+
+  // Calculate analytics data
+  const totalLikes = userRecipes?.reduce((sum, recipe) => sum + (recipe.likesCount || 0), 0) || 0;
+  const totalComments = userRecipes?.reduce((sum, recipe) => sum + (recipe.comments?.length || 0), 0) || 0;
+  const totalViews = userRecipes?.reduce((sum, recipe) => sum + (recipe.viewCount || 0), 0) || 0;
+
+  // Prepare chart data from actual recipe statistics
   const chartData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Recipe Views',
-        data: [65, 78, 52, 91, 120, 145],
-        backgroundColor: 'rgba(34, 197, 94, 0.6)',
-        borderColor: 'rgba(34, 197, 94, 1)',
-        borderWidth: 1,
-      },
-      {
-        label: 'Recipe Likes',
-        data: [28, 35, 19, 47, 60, 85],
-        backgroundColor: 'rgba(139, 92, 246, 0.6)',
-        borderColor: 'rgba(139, 92, 246, 1)',
-        borderWidth: 1,
-      },
-    ],
+    labels: ['Likes', 'Comments', 'Views', 'Saves'],
+    datasets: [{
+      label: 'Recipe Statistics',
+      data: [totalLikes, totalComments, totalViews, favoriteRecipes.length],
+      backgroundColor: [
+        'rgba(34, 197, 94, 0.6)',
+        'rgba(139, 92, 246, 0.6)',
+        'rgba(59, 130, 246, 0.6)',
+        'rgba(249, 115, 22, 0.6)'
+      ],
+      borderColor: [
+        'rgba(34, 197, 94, 1)',
+        'rgba(139, 92, 246, 1)',
+        'rgba(59, 130, 246, 1)',
+        'rgba(249, 115, 22, 1)'
+      ],
+      borderWidth: 1
+    }]
   };
 
   const chartOptions = {
@@ -163,7 +156,11 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {userRecipes.length === 0 ? (
+            {isLoadingUserRecipes ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+              </div>
+            ) : userRecipes.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-lg shadow-soft">
                 <div className="text-6xl mb-4">🍳</div>
                 <h3 className="text-xl font-semibold text-neutral-800 mb-2">No recipes yet</h3>
@@ -179,7 +176,11 @@ const Dashboard = () => {
             ) : viewMode === 'grid' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {userRecipes.map((recipe) => (
-                  <RecipeCard key={recipe.id} recipe={recipe} />
+                  <RecipeCard 
+                    key={recipe.id} 
+                    recipe={recipe}
+                    onDelete={() => handleDeleteRecipe(recipe.id)}
+                  />
                 ))}
               </div>
             ) : (
@@ -206,7 +207,7 @@ const Dashboard = () => {
                             {recipe.category}
                           </span>
                           <span className="text-sm text-neutral-500">
-                            {recipe.createdAt.toLocaleDateString()}
+                            {recipe.createdAt?.toLocaleDateString()}
                           </span>
                         </div>
                         <h3 className="text-lg font-semibold text-neutral-800 mb-1">
@@ -219,7 +220,7 @@ const Dashboard = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4 text-sm text-neutral-500">
                           <span className="flex items-center">
-                            <FiHeart className="mr-1" /> {recipe.likes}
+                            <FiHeart className="mr-1" /> {recipe.likesCount || 0}
                           </span>
                           <span>{recipe.cookTime} min</span>
                           <span>{recipe.servings} servings</span>
@@ -238,6 +239,8 @@ const Dashboard = () => {
                             size="sm"
                             variant="danger"
                             icon={<FiTrash2 size={16} />}
+                            onClick={() => handleDeleteRecipe(recipe.id)}
+                            disabled={deleteMutation.isLoading}
                           >
                             Delete
                           </Button>
@@ -272,7 +275,11 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {favoriteRecipes.length === 0 ? (
+            {isLoadingFavorites ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+              </div>
+            ) : favoriteRecipes.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-lg shadow-soft">
                 <div className="text-6xl mb-4">❤️</div>
                 <h3 className="text-xl font-semibold text-neutral-800 mb-2">No favorites yet</h3>
@@ -363,7 +370,7 @@ const Dashboard = () => {
                   </span>
                 </div>
                 <p className="text-3xl font-bold text-neutral-800">{userRecipes.length}</p>
-                <p className="text-sm text-neutral-500 mt-2">+2 from last month</p>
+                <p className="text-sm text-neutral-500 mt-2">Your published recipes</p>
               </motion.div>
 
               <motion.div
@@ -378,10 +385,8 @@ const Dashboard = () => {
                     <FiHeart />
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-neutral-800">
-                  {userRecipes.reduce((sum, recipe) => sum + recipe.likes, 0)}
-                </p>
-                <p className="text-sm text-neutral-500 mt-2">+18 from last month</p>
+                <p className="text-3xl font-bold text-neutral-800">{totalLikes}</p>
+                <p className="text-sm text-neutral-500 mt-2">Across all recipes</p>
               </motion.div>
 
               <motion.div
@@ -391,20 +396,18 @@ const Dashboard = () => {
                 className="bg-white p-6 rounded-xl shadow-soft"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-neutral-600 font-medium">Total Comments</h4>
+                  <h4 className="text-neutral-600 font-medium">Total Views</h4>
                   <span className="text-secondary-500 bg-secondary-50 p-2 rounded-full">
                     <FiActivity />
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-neutral-800">
-                  {userRecipes.reduce((sum, recipe) => sum + recipe.comments, 0)}
-                </p>
-                <p className="text-sm text-neutral-500 mt-2">+7 from last month</p>
+                <p className="text-3xl font-bold text-neutral-800">{totalViews}</p>
+                <p className="text-sm text-neutral-500 mt-2">Recipe page views</p>
               </motion.div>
             </div>
 
             <div className="bg-white p-6 rounded-xl shadow-soft mb-8">
-              <h4 className="text-lg font-semibold text-neutral-800 mb-4">Performance Over Time</h4>
+              <h4 className="text-lg font-semibold text-neutral-800 mb-4">Performance Overview</h4>
               <div className="h-80">
                 <Bar data={chartData} options={chartOptions} />
               </div>
@@ -424,7 +427,7 @@ const Dashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-neutral-200">
-                    {userRecipes.map((recipe) => (
+                    {userRecipes.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0)).slice(0, 5).map((recipe) => (
                       <tr key={recipe.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
@@ -442,13 +445,13 @@ const Dashboard = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                          {Math.floor(Math.random() * 1000) + 100}
+                          {recipe.viewCount || 0}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                          {recipe.likes}
+                          {recipe.likesCount || 0}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
-                          {recipe.comments}
+                          {recipe.comments?.length || 0}
                         </td>
                       </tr>
                     ))}
