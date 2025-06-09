@@ -13,6 +13,7 @@ import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
 import RecipeDetail from './pages/RecipeDetail';
 import AddRecipe from './pages/AddRecipe';
+import Tags from './pages/Tags';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -46,6 +47,7 @@ function App() {
                 <AddRecipe />
               </ProtectedRoute>
             } />
+            <Route path="/recipes/tags/:tag" element={<Tags />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Router>

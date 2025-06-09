@@ -5,9 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   FiClock, FiUsers, FiHeart, FiBookmark, FiShare2, FiPrinter, 
   FiMessageSquare, FiFacebook, FiTwitter, FiLinkedin, FiMail, FiLink,
-  FiEdit2, FiTrash2, FiStar, FiActivity
+  FiEdit2, FiTrash2, FiStar, FiActivity, FiX
 } from 'react-icons/fi';
-import { doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, increment, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 
 import Navbar from '../components/Navbar';
@@ -98,7 +98,10 @@ const RecipeDetail = () => {
   const [activeTab, setActiveTab] = useState('ingredients');
   const [commentText, setCommentText] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [rating, setRating] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const commentsPerPage = 4;
 
   // Fetch recipe data
   const { data: recipe, isLoading, error } = useQuery({
@@ -120,6 +123,27 @@ const RecipeDetail = () => {
       });
       return { id: docSnap.id, ...data };
     }
+  });
+
+  // Fetch similar recipes
+  const { data: similarRecipes = [] } = useQuery({
+    queryKey: ['similarRecipes', recipe?.category],
+    queryFn: async () => {
+      if (!recipe?.category) return [];
+      const recipesRef = collection(db, 'recipes');
+      const q = query(
+        recipesRef, 
+        where('category', '==', recipe.category),
+        where('id', '!=', recipeId),
+        limit(3)
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    },
+    enabled: !!recipe?.category
   });
 
   // Like recipe mutation
@@ -224,6 +248,21 @@ const RecipeDetail = () => {
     }
   });
 
+  // Delete comment mutation
+  const deleteCommentMutation = useMutation({
+    mutationFn: async (commentId) => {
+      const recipeRef = doc(db, 'recipes', recipeId);
+      const updatedComments = recipe.comments.filter(c => c.id !== commentId);
+      await updateDoc(recipeRef, {
+        comments: updatedComments
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['recipe', recipeId]);
+      toast.success('Comment deleted successfully');
+    }
+  });
+
   const handleShare = (platform) => {
     const url = window.location.href;
     const text = `Check out this amazing recipe: ${recipe.title}`;
@@ -246,9 +285,8 @@ const RecipeDetail = () => {
   };
 
   const handleDelete = () => {
-    if (window.confirm('Are you sure you want to delete this recipe?')) {
-      deleteMutation.mutate();
-    }
+    deleteMutation.mutate();
+    setShowDeleteModal(false);
   };
 
   const handleComment = (e) => {
@@ -261,6 +299,18 @@ const RecipeDetail = () => {
     setRating(value);
     ratingMutation.mutate(value);
   };
+
+  const handleDeleteComment = (commentId) => {
+    if (window.confirm('Are you sure you want to delete this comment?')) {
+      deleteCommentMutation.mutate(commentId);
+    }
+  };
+
+  // Calculate pagination
+  const indexOfLastComment = currentPage * commentsPerPage;
+  const indexOfFirstComment = indexOfLastComment - commentsPerPage;
+  const currentComments = recipe?.comments?.slice(indexOfFirstComment, indexOfLastComment) || [];
+  const totalPages = Math.ceil((recipe?.comments?.length || 0) / commentsPerPage);
 
   if (isLoading) {
     return (
@@ -386,7 +436,7 @@ const RecipeDetail = () => {
                           Edit
                         </Button>
                         <Button
-                          onClick={handleDelete}
+                          onClick={() => setShowDeleteModal(true)}
                           variant="outline"
                           className="!text-white border-white/30 hover:bg-white/10"
                         >
@@ -507,6 +557,44 @@ const RecipeDetail = () => {
                     <FiLink />
                     <span>Copy Link</span>
                   </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          {/* Delete Confirmation Modal */}
+          <AnimatePresence>
+            {showDeleteModal && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                onClick={() => setShowDeleteModal(false)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="bg-white rounded-xl p-6 max-w-sm w-full mx-4"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <h3 className="text-xl font-semibold text-neutral-800 mb-4">Delete Recipe</h3>
+                  <p className="text-neutral-600 mb-6">Are you sure you want to delete this recipe? This action cannot be undone.</p>
+                  <div className="flex justify-end space-x-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowDeleteModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={handleDelete}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </motion.div>
               </motion.div>
             )}
@@ -682,34 +770,69 @@ const RecipeDetail = () => {
                   {(!recipe.comments || recipe.comments.length === 0) ? (
                     <p className="text-center text-neutral-500 py-6">No comments yet. Be the first to share your thoughts!</p>
                   ) : (
-                    recipe.comments.map((comment) => (
-                      <motion.div 
-                        key={comment.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="flex space-x-4"
-                      >
-                        <img 
-                          src={comment.userPhotoURL} 
-                          alt={comment.userName} 
-                          className="w-10 h-10 rounded-full"
-                        />
-                        <div className="flex-grow">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium text-neutral-800">{comment.userName}</h4>
-                            <span className="text-sm text-neutral-500">
-                              {new Date(comment.createdAt?.toDate?.() || comment.createdAt).toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'short', 
-                                day: 'numeric' 
-                              })}
-                            </span>
+                    <>
+                      {currentComments.map((comment) => (
+                        <motion.div 
+                          key={comment.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="flex space-x-4"
+                        >
+                          <img 
+                            src={comment.userPhotoURL || 'https://via.placeholder.com/40x40?text=U'} 
+                            alt={comment.userName} 
+                            className="w-10 h-10 rounded-full"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://via.placeholder.com/40x40?text=U';
+                            }}
+                          />
+                          <div className="flex-grow">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-neutral-800">{comment.userName}</h4>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-neutral-500">
+                                  {new Date(comment.createdAt?.toDate?.() || comment.createdAt).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'short', 
+                                    day: 'numeric' 
+                                  })}
+                                </span>
+                                {(user?.uid === comment.userId || user?.uid === recipe.userId) && (
+                                  <button
+                                    onClick={() => handleDeleteComment(comment.id)}
+                                    className="p-1 text-neutral-400 hover:text-red-500 transition-colors"
+                                  >
+                                    <FiTrash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-neutral-700 mt-1">{comment.text}</p>
                           </div>
-                          <p className="text-neutral-700 mt-1">{comment.text}</p>
+                        </motion.div>
+                      ))}
+
+                      {/* Pagination */}
+                      {totalPages > 1 && (
+                        <div className="flex justify-center space-x-2 mt-6">
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`px-3 py-1 rounded-md ${
+                                currentPage === pageNum
+                                  ? 'bg-primary-500 text-white'
+                                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          ))}
                         </div>
-                      </motion.div>
-                    ))
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -722,25 +845,29 @@ const RecipeDetail = () => {
                 <h3 className="text-lg font-semibold text-neutral-800 mb-4">You Might Also Like</h3>
                 
                 <div className="space-y-4">
-                  {[1, 2, 3].map((item) => (
+                  {similarRecipes.map((similarRecipe) => (
                     <Link 
-                      key={item}
-                      to={`/recipe/${item + 10}`}
+                      key={similarRecipe.id}
+                      to={`/recipe/${similarRecipe.id}`}
                       className="flex items-center space-x-3 group"
                     >
                       <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
                         <img 
-                          src={`https://source.unsplash.com/random/200x200?food,recipe&sig=${item}`}
-                          alt="Recipe"
+                          src={similarRecipe.imageUrl || 'https://via.placeholder.com/200x200?text=Recipe'}
+                          alt={similarRecipe.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://via.placeholder.com/200x200?text=Recipe';
+                          }}
                         />
                       </div>
                       <div>
                         <h4 className="font-medium text-neutral-800 group-hover:text-primary-600 transition-colors">
-                          {item === 1 ? 'Creamy Garlic Pasta' : item === 2 ? 'Chocolate Brownies' : 'Avocado Toast'}
+                          {similarRecipe.title}
                         </h4>
                         <p className="text-sm text-neutral-500">
-                          {item === 1 ? 'Italian' : item === 2 ? 'Dessert' : 'Breakfast'} • {15 + item * 5} min
+                          {similarRecipe.category} • {similarRecipe.cookTime} min
                         </p>
                       </div>
                     </Link>
