@@ -2,60 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiArrowRight, FiTrendingUp, FiClock, FiThumbsUp } from 'react-icons/fi';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { db } from '../firebase/config';
 
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import SearchBar from '../components/SearchBar';
 import RecipeCard from '../components/RecipeCard';
 import Button from '../components/Button';
-
-// Sample data - would be replaced with Firebase data
-const sampleRecipes = [
-  {
-    id: '1',
-    title: 'Creamy Garlic Parmesan Pasta',
-    description: 'A rich and creamy pasta dish with garlic and parmesan cheese, perfect for a quick weeknight dinner.',
-    imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=880&q=80',
-    category: 'Pasta',
-    cookTime: 25,
-    servings: 4,
-    authorName: 'Jamie Oliver',
-    authorPhotoURL: 'https://randomuser.me/api/portraits/men/32.jpg',
-  },
-  {
-    id: '2',
-    title: 'Spicy Thai Basil Chicken',
-    description: 'A flavorful and spicy Thai dish with chicken, basil, and chili peppers. Serve with steamed rice.',
-    imageUrl: 'https://images.unsplash.com/photo-1627308595171-d1b5d95d0e11?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=735&q=80',
-    category: 'Asian',
-    cookTime: 30,
-    servings: 3,
-    authorName: 'Pailin Chongchitnant',
-    authorPhotoURL: 'https://randomuser.me/api/portraits/women/44.jpg',
-  },
-  {
-    id: '3',
-    title: 'Classic Beef Burger',
-    description: 'Juicy homemade beef burgers with all the toppings. Perfect for summer barbecues.',
-    imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=699&q=80',
-    category: 'American',
-    cookTime: 20,
-    servings: 4,
-    authorName: 'Gordon Ramsay',
-    authorPhotoURL: 'https://randomuser.me/api/portraits/men/85.jpg',
-  },
-  {
-    id: '4',
-    title: 'Vegetable Stir Fry',
-    description: 'A healthy and colorful vegetable stir fry with a savory sauce. Ready in minutes!',
-    imageUrl: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80',
-    category: 'Vegetarian',
-    cookTime: 15,
-    servings: 2,
-    authorName: 'Ella Woodward',
-    authorPhotoURL: 'https://randomuser.me/api/portraits/women/12.jpg',
-  },
-];
 
 const categories = [
   { name: 'Breakfast', icon: '🍳' },
@@ -71,9 +25,32 @@ const Home = () => {
   const [trendingRecipes, setTrendingRecipes] = useState([]);
 
   useEffect(() => {
-    // In a real app, this would fetch from Firebase
-    setFeaturedRecipes(sampleRecipes);
-    setTrendingRecipes(sampleRecipes.slice(0, 3));
+    // Fetch featured recipes
+    const fetchFeaturedRecipes = async () => {
+      const recipesRef = collection(db, 'recipes');
+      const q = query(recipesRef, where('isFeatured', '==', true), limit(4));
+      const querySnapshot = await getDocs(q);
+      const recipes = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setFeaturedRecipes(recipes);
+    };
+
+    // Fetch trending recipes
+    const fetchTrendingRecipes = async () => {
+      const recipesRef = collection(db, 'recipes');
+      const q = query(recipesRef, orderBy('viewCount', 'desc'), limit(3));
+      const querySnapshot = await getDocs(q);
+      const recipes = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setTrendingRecipes(recipes);
+    };
+
+    fetchFeaturedRecipes();
+    fetchTrendingRecipes();
   }, []);
 
   return (
@@ -115,6 +92,8 @@ const Home = () => {
               className="flex flex-wrap justify-center gap-4"
             >
               <Button 
+                as={Link}
+                to="/browse"
                 size="lg" 
                 icon={<FiArrowRight />}
                 iconPosition="right"
@@ -122,9 +101,11 @@ const Home = () => {
                 Browse Recipes
               </Button>
               <Button 
+                as={Link}
+                to="/register"
                 variant="outline" 
                 size="lg" 
-                className="bg-white bg-opacity-20 border-white text-white hover:bg-white hover:bg-opacity-30"
+                className="bg-white bg-opacity-20 border-white text-white hover:bg-primary-500 hover:bg-opacity-30"
               >
                 Join Community
               </Button>
@@ -175,7 +156,7 @@ const Home = () => {
               <h2 className="text-3xl font-bold text-neutral-800 mb-2">Featured Recipes</h2>
               <p className="text-neutral-600">Discover our hand-picked selection of delicious recipes</p>
             </div>
-            <Link to="/recipes" className="hidden md:flex items-center text-primary-600 hover:text-primary-700 font-medium">
+            <Link to="/featured" className="hidden md:flex items-center text-primary-600 hover:text-primary-700 font-medium">
               View All
               <FiArrowRight className="ml-2" />
             </Link>
@@ -188,7 +169,13 @@ const Home = () => {
           </div>
 
           <div className="mt-8 text-center md:hidden">
-            <Button variant="outline" icon={<FiArrowRight />} iconPosition="right">
+            <Button 
+              as={Link}
+              to="/featured"
+              variant="outline" 
+              icon={<FiArrowRight />} 
+              iconPosition="right"
+            >
               View All Recipes
             </Button>
           </div>
@@ -254,7 +241,7 @@ const Home = () => {
               <h2 className="text-3xl font-bold mb-2">Trending Now</h2>
               <p className="text-white text-opacity-90">The most popular recipes this week</p>
             </div>
-            <Link to="/recipes?sort=trending" className="hidden md:flex items-center text-white font-medium hover:text-secondary-200">
+            <Link to="/trending" className="hidden md:flex items-center text-white font-medium hover:text-secondary-200">
               View All
               <FiArrowRight className="ml-2" />
             </Link>
@@ -299,6 +286,8 @@ const Home = () => {
 
           <div className="mt-8 text-center md:hidden">
             <Button
+              as={Link}
+              to="/trending"
               variant="outline"
               icon={<FiArrowRight />}
               iconPosition="right"

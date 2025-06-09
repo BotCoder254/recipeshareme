@@ -16,6 +16,7 @@ import AddRecipe from './pages/AddRecipe';
 import Tags from './pages/Tags';
 import Trending from './pages/Trending';
 import Featured from './pages/Featured';
+import Browse from './pages/Browse';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -52,6 +53,7 @@ function App() {
             <Route path="/recipes/tags/:tag" element={<Tags />} />
             <Route path="/trending" element={<Trending />} />
             <Route path="/featured" element={<Featured />} />
+            <Route path="/browse" element={<Browse />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Router>
